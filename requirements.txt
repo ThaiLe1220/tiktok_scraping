@@ -1,0 +1,14 @@
+# brew install ffmpeg --with-libvpx --with-libaom --with-x265 --with-openssl
+# sudo apt-get install libaom-dev
+# sudo apt-get install ffmpeg
+
+python-dotenv
+Pillow
+yt-dlp
+opencv-python 
+ffmpeg-python
+moviepy
+selenium
+google-genai
+pandas
+fuzzywuzzy

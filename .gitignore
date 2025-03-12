@@ -1,0 +1,8 @@
+__pycache__
+.env
+
+static
+static/tiktok_*
+*.json
+*.mp4
+*.csv
