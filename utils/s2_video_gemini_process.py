@@ -4,12 +4,11 @@ import json
 import re
 from google import genai
 from google.genai import types, Client
-from moviepy.editor import VideoFileClip
 from typing import List, Any, Optional
 from tqdm import tqdm
-import glob
 
-def upload_video_and_poll(client: 'Client', video_file_path: str) -> Optional[str]:
+
+def upload_video_and_poll(client: "Client", video_file_path: str) -> Optional[str]:
     """
     Uploads a video file and polls its status until it becomes ACTIVE.
     Returns the video file object if ACTIVE, or None if it fails.
@@ -33,7 +32,7 @@ def process_video(video_file_path: str):
     """
     # Initialize the client with the API key from the environment
     client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
-    
+
     # Upload the video file and wait until it is ACTIVE
     video_file = upload_video_and_poll(client, video_file_path)
     if video_file is None:
@@ -46,22 +45,25 @@ def process_video(video_file_path: str):
             "Each scene begins with two distinct entities shown together, followed by a fusion event creating a combined version of both entities. "
             "Provide timestamps as concise and accurate as possible since they will be used to precisely cut the video into multiple scenes. "
             "For each scene, clearly describe the entities involved and their fused result. Additionally, check if there is a watermark present in the scene. "
+            "Separately, also check whether there are any other texts displayed on the screen, such as subtitles, captions, or interactive textboxes prompting actions like 'follow,' 'share,' 'subscribe,' 'like,' or 'comment.'"
             "Structure your response in JSON format as follows:\n\n"
             "{\n"
             '  "scenes": [\n'
             "    {\n"
             '      "text": "Brief description of the fusion scene.",\n'
-            '      "time": "MM:SS",\n'
+            '      "time": "MM:SS.mmm",\n'
             '      "original_entities": ["Entity 1", "Entity 2"],\n'
             '      "fused_result": "Description of fused entity",\n'
             '      "watermark": "yes/no"\n'
+            '      "other_texts": "yes/no"\n'
             "    },\n"
             "    {\n"
             '      "text": "Another fusion scene description.",\n'
-            '      "time": "MM:SS",\n'
+            '      "time": "MM:SS.mmm",\n'
             '      "original_entities": ["Entity 1", "Entity 2"],\n'
             '      "fused_result": "Description of fused entity",\n'
             '      "watermark": "yes/no"\n'
+            '      "other_texts": "yes/no"\n'
             "    }\n"
             "    // Add additional fusion scenes as needed\n"
             "  ]\n"
@@ -126,11 +128,8 @@ def process_response_from_generated_data(response):
         json_str = match.group(1)
         scenes_data = json.loads(json_str)  # Expecting a dict with a "scenes" key
     except Exception as e:
-        # print(f"Error processing candidate text: {e}")
+        print(f"Error processing candidate text: {e}")
         scenes_data = {}
-
-    # Log the structure of the response for debugging
-    # print("Full response:", response)
 
     # Accessing token usage directly from the response
     usage = response.usage_metadata
@@ -164,110 +163,39 @@ def process_response_from_generated_data(response):
     return result_data
 
 
-def time_str_to_seconds(time_str):
-    """Converts a time string in MM:SS format to seconds."""
-    parts = time_str.strip().split(":")
-    if len(parts) != 2:
-        raise ValueError(f"Invalid time format: {time_str}")
-    minutes, seconds = parts
-    return int(minutes) * 60 + int(seconds)
-
-
-def get_effective_start(scene, idx):
-    """
-    Returns the effective start time for a scene.
-    For the first scene, no modification is applied.
-    For subsequent scenes, add 1 second and then an extra 0.5 seconds.
-    """
-    raw_time = time_str_to_seconds(scene["time"])
-    if idx == 0:
-        return raw_time
-    else:
-        return raw_time + 1.5
-
-
-def cut_video_scenes(video_file_path: str, output: str, scenes):
-    """
-    Cuts the video into scenes based on adjusted start times.
-    For scenes except the last, the end time is the next scene's effective start minus 1 second.
-    Returns a list of dictionaries containing scene information.
-    """
-    video_name = os.path.splitext(os.path.basename(video_file_path))[0]
-    clip = VideoFileClip(video_file_path)
-    video_duration = clip.duration
-
-    final_scene_data = []
-
-    # Compute effective start times for all scenes
-    effective_starts = [
-        get_effective_start(scene, idx) for idx, scene in enumerate(scenes)
-    ]
-
-    for idx, scene in enumerate(scenes):
-        try:
-            start_time = effective_starts[idx]
-            if idx < len(scenes) - 1:
-                # Subtract 1 second from next scene's effective start to determine the end time
-                end_time = effective_starts[idx + 1] - 1
-            else:
-                end_time = video_duration
-
-            scene_duration = end_time - start_time
-
-            # Define output file name e.g., "1-1.mp4", "1-2.mp4", etc.
-            output_filename = f"{video_name}-{idx+1}.mp4"
-            # Save the video clip in the same directory as the input video
-            output_filepath = os.path.join(output, output_filename)
-
-            # Extract subclip and write the video file
-            scene_clip = clip.subclip(start_time, end_time)
-            scene_clip.write_videofile(
-                output_filepath, codec="libx264", audio_codec="aac", logger=None
-            )
-
-            # Build the scene object for the final JSON
-            scene_info = {
-                "name": output_filepath,
-                "original_entities": scene.get("original_entities", []),
-                "total time": scene_duration,
-                "description": scene.get("text", ""),
-                "watermark": scene.get("watermark", ""),
-            }
-            final_scene_data.append(scene_info)
-        except:
-            continue
-    clip.close()
-    return final_scene_data
-
-
 def save_as_json(video_id: str, output: str, data: Any) -> None:
-    with open(os.path.join(output, f'{video_id}-result.json'), 'w', encoding='utf-8') as f:
+    """
+    Saves data to JSON files.
+    """
+    with open(
+        os.path.join(output, f"{video_id}-result.json"), "w", encoding="utf-8"
+    ) as f:
         json.dump(data, f, indent=2)
-    with open(os.path.join(output, f'{video_id}-final.json'), 'w', encoding='utf-8') as f:
-        json.dump({'scenes': data.get('scenes', [])}, f, indent=2)
 
-def gemini_process(json_output: str, cut_output: str, videos: List[str]) -> None:
+
+def gemini_process(json_output: str, videos: List[str]) -> None:
+    """
+    Processes videos using Gemini and saves the results as JSON.
+    """
     os.makedirs(json_output, exist_ok=True)
-    os.makedirs(cut_output, exist_ok=True)
 
     videos.sort()
 
-    for video_file_path in tqdm(videos, total=len(videos), desc='Gemini Process', colour='green'):
+    for video_file_path in tqdm(
+        videos, total=len(videos), desc="Gemini Process", colour="green"
+    ):
         video_name = os.path.splitext(os.path.basename(video_file_path))[0]
 
-        result = {}
-        if not os.path.exists(os.path.join(json_output, f'{video_name}-result.json')):
-            result = process_video(video_file_path)
-            result_data = process_response_from_generated_data(result)
-            result = result_data
-        else:
-            with open(os.path.join(json_output, f'{video_name}-result.json'), 'r', encoding='utf-8') as f:
-                result = json.loads(f.read())
-        
-        pattern = os.path.join(cut_output, f'{video_name}-*.mp4')
-        video_files = glob.glob(pattern)
+        # Skip if the result JSON already exists
+        if os.path.exists(os.path.join(json_output, f"{video_name}-result.json")):
+            print(f"Skipping {video_name} - result already exists")
+            continue
 
-        if len(video_files) != len(result.get('scenes', [])):
-            scenes = cut_video_scenes(video_file_path, cut_output, result.get('scenes', []))
-            result_data['scenes'] = scenes
-        save_as_json(video_name, json_output, result_data)
+        response = process_video(video_file_path)
+        if response is None:
+            print(f"Failed to process video: {video_file_path}")
+            continue
+
+        result = process_response_from_generated_data(response)
+        save_as_json(video_name, json_output, result)
+        # print(f"Processed {video_name} with {len(result.get('scenes', []))} scenes")
