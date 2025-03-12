@@ -3,7 +3,7 @@ import json
 import glob
 from tqdm import tqdm
 from typing import List, Dict, Any, Tuple
-from moviepy.editor import VideoFileClip
+from moviepy import VideoFileClip  # Fixed import statement
 
 
 # Existing functions remain unchanged
@@ -22,22 +22,8 @@ def time_str_to_seconds(time_str):
         return int(minutes) * 60 + int(seconds)
 
 
-def get_effective_start(scene, idx):
-    """
-    Returns the effective start time for a scene.
-    For the first scene, no modification is applied.
-    For subsequent scenes, add 1.5 seconds.
-    """
-    raw_time = time_str_to_seconds(scene["time"])
-    if idx == 0:
-        return raw_time
-    else:
-        return raw_time + 0.5
-
-
 def cut_video_scenes(video_file_path: str, output: str, scenes: List[Dict[str, Any]]):
     """Cuts the video into scenes based on adjusted start times."""
-    # Existing implementation remains the same
     video_name = os.path.splitext(os.path.basename(video_file_path))[0]
     clip = VideoFileClip(video_file_path)
     video_duration = clip.duration
@@ -48,21 +34,14 @@ def cut_video_scenes(video_file_path: str, output: str, scenes: List[Dict[str, A
 
     final_scene_data = []
 
-    # Compute effective start times for all scenes
-    # Skip applying offsets for videos shorter than 30 seconds
-    if video_duration < 30:
-        effective_starts = [time_str_to_seconds(scene["time"]) for scene in scenes]
-    else:
-        effective_starts = [
-            get_effective_start(scene, idx) for idx, scene in enumerate(scenes)
-        ]
+    effective_starts = [time_str_to_seconds(scene["time"]) for scene in scenes]
 
     for idx, scene in enumerate(scenes):
         try:
-            start_time = effective_starts[idx]
+            start_time = effective_starts[idx] + 0.65
 
             if idx < len(scenes) - 1:
-                end_time = effective_starts[idx + 1] - 1
+                end_time = effective_starts[idx + 1] - 0.65
             else:
                 end_time = video_duration
 
@@ -82,7 +61,10 @@ def cut_video_scenes(video_file_path: str, output: str, scenes: List[Dict[str, A
             output_filepath = os.path.join(output_dir, output_filename)
 
             # Extract subclip and write the video file
-            scene_clip = clip.subclip(start_time, end_time)
+            # Try the new method name first
+            scene_clip = clip.subclipped(
+                start_time, end_time
+            )  # Changed from subclip to subclipped
             scene_clip.write_videofile(
                 output_filepath, codec="libx264", audio_codec="aac", logger=None
             )

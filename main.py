@@ -171,14 +171,8 @@ def cut_channel_videos(channel_name: str) -> bool:
 def post_process_channel(channel_name: str) -> bool:
     """Post-process videos for a specific channel."""
     try:
-        _, json_dir, _ = create_channel_directories(channel_name)
-
-        if not os.path.exists(json_dir):
-            print(f"Error: JSON directory not found for channel: @{channel_name}")
-            return False
-
         print(f"Post-processing results for channel: @{channel_name}")
-        post_process(os.path.join(json_dir, "*-final.json"))
+        post_process(channel_name)
         print(f"Successfully post-processed results for channel: @{channel_name}")
         return True
     except Exception as e:
