@@ -1,8 +1,8 @@
-# TIKTOK AUTO AI FUSION
+# TIKTOK Scraping
 
 # Installation
 
-- Python >= 3.9.0
+- Python >= 3.12.0
 
 ```bash
 python -m pip install -r requirements.txt
@@ -11,4 +11,4 @@ python -m pip install -r requirements.txt
 # Getting started
 
 - Provide `channel` or a list of `channels` on Tiktok
-- Run `main.py` file
+- Run `main.py` file check `eugene-note.md`
